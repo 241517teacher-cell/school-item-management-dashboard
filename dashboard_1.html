@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学校備品 リアルタイムモニタリング ダッシュボード</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        /* スクロールバーのカスタマイズ */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen flex flex-col font-sans overflow-hidden">
+
+    <!-- ヘッダー -->
+    <header class="bg-slate-900 text-white shadow-md px-6 py-3 flex justify-between items-center shrink-0 h-14 z-10">
+        <div class="flex items-center space-x-3">
+            <div class="bg-indigo-600 p-2 rounded-xl flex items-center justify-center shadow-inner">
+                <i class="fa-solid fa-boxes-stacked text-lg text-amber-300"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-bold tracking-wide leading-tight">学校備品 リアルタイムモニタリング</h1>
+                <p class="text-[10px] text-slate-400">リアルタイム在庫・貸出状況ダッシュボード</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center space-x-3">
+            <!-- データモード切り替え表示 -->
+            <div id="mode-badge" class="hidden md:flex items-center text-[11px] px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
+                <span id="mode-text">デモモード動作中</span>
+            </div>
+
+            <!-- GASガイド＆URL設定ボタン -->
+            <button onclick="toggleGasModal()" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs px-3 py-1.5 rounded-lg font-medium transition border border-slate-700 flex items-center space-x-1.5">
+                <i class="fa-solid fa-gear text-indigo-400"></i>
+                <span class="hidden sm:inline">GAS連携設定</span>
+            </button>
+
+            <!-- 最終更新 & 更新ボタン -->
+            <span id="sync-status" class="bg-slate-800 text-slate-300 text-xs px-3 py-1.5 rounded-lg border border-slate-700 flex items-center font-mono">
+                <i id="sync-icon" class="fa-solid fa-arrows-rotate mr-2 text-indigo-400"></i>
+                <span class="hidden sm:inline mr-1 text-slate-400 font-sans">最終更新:</span> <span id="last-updated">--:--:--</span>
+            </span>
+            
+            <button onclick="fetchDashboardData(true)" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs px-3.5 py-1.5 rounded-lg font-medium transition flex items-center space-x-1.5 shadow-sm">
+                <i class="fa-solid fa-rotate-right text-xs"></i>
+                <span class="hidden sm:inline">手動更新</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-1 p-4 flex flex-col space-y-4 overflow-hidden h-[calc(100vh-3.5rem)]">
+
+        <!-- 上段エリア: KPIサマリー ＆ 統計グラフ -->
+        <div class="grid grid-cols-12 gap-4 h-2/5 shrink-0">
+
+            <!-- サマリーカードエリア (4/12列) -->
+            <div class="col-span-12 lg:col-span-4 grid grid-cols-2 gap-3 h-full">
+                <!-- 要対応（遅延）カード -->
+                <div class="bg-gradient-to-br from-rose-50 to-rose-100/60 border-2 border-rose-200/80 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:shadow transition">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-bold text-rose-700 tracking-wide uppercase">要対応（返却遅延）</p>
+                            <p class="text-[10px] text-rose-500 font-medium">返却期限を超過した備品</p>
+                        </div>
+                        <div class="w-10 h-10 bg-rose-200/80 text-rose-600 rounded-xl flex items-center justify-center text-lg shrink-0 shadow-sm">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-2">
+                        <div class="flex items-baseline space-x-1">
+                            <span id="count-overdue" class="text-3xl font-black text-rose-700 font-mono">0</span>
+                            <span class="text-xs font-bold text-rose-600">件</span>
+                        </div>
+                        <span id="alert-badge" class="text-[10px] px-2 py-0.5 rounded-md font-bold bg-rose-200 text-rose-800 hidden animate-pulse">要確認</span>
+                    </div>
+                </div>
+
+                <!-- 現在貸出中カード -->
+                <div class="bg-gradient-to-br from-amber-50 to-amber-100/60 border-2 border-amber-200/80 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:shadow transition">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-bold text-amber-800 tracking-wide uppercase">現在貸出中</p>
+                            <p class="text-[10px] text-amber-600 font-medium">現在運用中の備品数</p>
+                        </div>
+                        <div class="w-10 h-10 bg-amber-200/80 text-amber-700 rounded-xl flex items-center justify-center text-lg shrink-0 shadow-sm">
+                            <i class="fa-solid fa-box-archive"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-2">
+                        <div class="flex items-baseline space-x-1">
+                            <span id="count-active" class="text-3xl font-black text-amber-800 font-mono">0</span>
+                            <span class="text-xs font-bold text-amber-700">件</span>
+                        </div>
+                        <span class="text-[10px] text-amber-700 font-bold bg-amber-200/80 px-2 py-0.5 rounded-md">稼働中</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 貸出返却件数推移グラフ (8/12列) -->
+            <div class="col-span-12 lg:col-span-8 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col h-full overflow-hidden">
+                <div class="flex justify-between items-center mb-2 shrink-0">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-chart-line text-indigo-500 text-sm"></i>
+                        <span class="text-xs font-bold text-slate-700">直近1ヵ月の貸出・返却アクティビティ推移</span>
+                        <span id="chart-status" class="text-[10px] text-indigo-500 font-mono bg-indigo-50 px-2 py-0.5 rounded">同期待機中</span>
+                    </div>
+                    <div class="flex items-center space-x-3 text-[11px] text-slate-500">
+                        <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 mr-1.5 inline-block"></span>貸出</span>
+                        <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-1.5 inline-block"></span>返却</span>
+                    </div>
+                </div>
+                <!-- グラフ領域 (Chart.js描画領域のレスポンシブ崩れ防止構造) -->
+                <div class="flex-1 min-h-0 relative w-full h-full">
+                    <canvas id="trendChart" class="absolute inset-0 w-full h-full"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 下段エリア: 詳細リスト（左右2カラム） -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0">
+
+            <!-- 左側: 返却期限超過の詳細リスト -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden">
+                <div class="bg-rose-500 text-white px-4 py-2.5 font-bold text-xs flex justify-between items-center shrink-0">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-clock-rotate-left text-rose-100"></i>
+                        <span>返却期限超過（詳細一覧）</span>
+                    </div>
+                    <span id="badge-overdue" class="bg-rose-700 text-white text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold">0件</span>
+                </div>
+                <!-- 検索バー -->
+                <div class="p-2.5 border-b border-slate-100 bg-slate-50/50">
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                        <input type="text" id="search-overdue" oninput="filterLists()" placeholder="備品ID・備品名・借用者で検索..." class="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-400 bg-white">
+                    </div>
+                </div>
+                <!-- リスト本体 -->
+                <div id="list-overdue" class="flex-1 overflow-y-auto p-3 space-y-2">
+                    <!-- JSで動的生成 -->
+                </div>
+            </div>
+
+            <!-- 右側: 現在貸出中の詳細リスト -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden">
+                <div class="bg-slate-800 text-white px-4 py-2.5 font-bold text-xs flex justify-between items-center shrink-0">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-boxes-packing text-amber-400"></i>
+                        <span>現在貸出中（詳細一覧）</span>
+                    </div>
+                    <span id="badge-active" class="bg-slate-900 text-white text-[10px] px-2.5 py-0.5 rounded-full font-mono font-semibold">0件</span>
+                </div>
+                <!-- 検索バー -->
+                <div class="p-2.5 border-b border-slate-100 bg-slate-50/50">
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                        <input type="text" id="search-active" oninput="filterLists()" placeholder="備品ID・備品名・借用者で検索..." class="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
+                    </div>
+                </div>
+                <!-- リスト本体 -->
+                <div id="list-active" class="flex-1 overflow-y-auto p-3 space-y-2">
+                    <!-- JSで動的生成 -->
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- GAS設定ガイド＆URL入力 モーダル -->
+    <div id="gas-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-100">
+            <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-sliders text-indigo-400"></i>
+                    <h3 class="font-bold text-sm">Google Apps Script (GAS) 連携・Web API設定</h3>
+                </div>
+                <button onclick="toggleGasModal()" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-5 overflow-y-auto space-y-4 text-xs text-slate-600">
+                
+                <!-- GAS Web API URL設定フィールド -->
+                <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                    <label class="block text-xs font-bold text-slate-700">GAS WebアプリURL (Web App URL)</label>
+                    <p class="text-[11px] text-slate-500">お持ちのGASでデプロイしたWebアプリURLを入力・保存することで、本番のスプレッドシートと直接連携できます。</p>
+                    <div class="flex space-x-2">
+                        <input type="text" id="gas-url-input" placeholder="https://script.google.com/macros/s/.../exec" class="flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono">
+                        <button onclick="saveGasUrl()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-bold text-xs transition shrink-0">
+                            URL保存
+                        </button>
+                    </div>
+                </div>
+
+                <p class="leading-relaxed">スプレッドシートの「貸出返却履歴」シートから直近1ヵ月（30日間）の集計データをリアルタイムでグラフ表示します。コード更新時は「新バージョン」で再デプロイを行ってください。</p>
+
+                <div class="bg-slate-900 text-slate-200 p-3.5 rounded-xl font-mono text-[11px] overflow-x-auto border border-slate-800">
+                    <pre><code>// doGetにgetDashboardData(ss)が含まれているか確認してください
+function doGet(e) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const action = (e && e.parameter) ? e.parameter.action : "";
+  if (action === "getDashboardData") {
+    return ContentService.createTextOutput(JSON.stringify(getDashboardData(ss)))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  // ...既存の処理...
+}</code></pre>
+                </div>
+
+                <div class="space-y-2 bg-indigo-50 border border-indigo-200 rounded-xl p-3.5 text-indigo-900">
+                    <p class="font-bold flex items-center"><i class="fa-solid fa-circle-check text-indigo-600 mr-2"></i>デプロイの確認手順</p>
+                    <ul class="list-disc list-inside space-y-1 text-[11px] text-indigo-800 pl-1">
+                        <li>ウェブアプリのアクセス権限: <b>「全員 (Anyone)」</b></li>
+                        <li>デプロイ更新時: <b>「デプロイを管理」 ＞ 「編集」 ＞ 「新バージョン」</b> を選択</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="bg-slate-50 px-5 py-3 flex justify-between items-center border-t border-slate-100">
+                <button onclick="resetGasUrl()" class="text-slate-500 hover:text-slate-800 text-xs font-medium underline">
+                    デフォルトのデモURLに戻す
+                </button>
+                <button onclick="toggleGasModal()" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium transition">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- スクリプト＆データ処理 -->
+    <script>
+        const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyz4fYqYcjdmgeetwb_TGFwHaQIQ-nK0L4XIphCkVj8uNbo3_J7wuhq6RQYdDKZbheY/exec";
+        let currentGasUrl = localStorage.getItem('CUSTOM_GAS_API_URL') || DEFAULT_GAS_URL;
+        
+        const AUTO_REFRESH_INTERVAL = 30000; // 30秒ごとに自動更新
+        let trendChart = null;
+        let globalDashboardData = { overdueLoans: [], activeLoans: [] };
+
+        // 過去30日分のデモラベル＆データの自動生成関数
+        function generateMock30Days() {
+            const labels = [];
+            const borrowed = [];
+            const returned = [];
+            const today = new Date();
+            for (let i = 29; i >= 0; i--) {
+                const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+                labels.push(`${d.getMonth() + 1}/${d.getDate()}`);
+                borrowed.push(Math.floor(Math.random() * 5));
+                returned.push(Math.floor(Math.random() * 4));
+            }
+            return { labels, borrowed, returned };
+        }
+
+        // 実データ取得失敗時や初期表示時のデモデータ
+        const MOCK_DATA = {
+            overdueCount: 0,
+            activeCount: 4,
+            updatedAt: "2026/09/05 15:10:00",
+            overdueLoans: [],
+            activeLoans: [
+                { id: "24_002", name: "USB Type-C HD", borrowerName: "入佐 恭平", borrowerId: "241517", borrowDate: "2026/09/05 12:56" },
+                { id: "24_003", name: "USB Type-C HD", borrowerName: "入佐 恭平", borrowerId: "241517", borrowDate: "2026/09/05 12:56" },
+                { id: "24_004", name: "USB Type-C HD", borrowerName: "入佐 恭平", borrowerId: "241517", borrowDate: "2026/09/05 14:02" },
+                { id: "24_009", name: "USB Type-C HD", borrowerName: "入佐 恭平", borrowerId: "241517", borrowDate: "2026/09/05 12:25" }
+            ],
+            weeklyStats: generateMock30Days()
+        };
+
+        window.onload = function() {
+            document.getElementById('gas-url-input').value = currentGasUrl;
+            initChart();
+            fetchDashboardData();
+            setInterval(fetchDashboardData, AUTO_REFRESH_INTERVAL);
+        };
+
+        // Chart.js の初期化
+        function initChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: MOCK_DATA.weeklyStats.labels,
+                    datasets: [
+                        {
+                            label: '貸出数',
+                            data: MOCK_DATA.weeklyStats.borrowed,
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                            borderWidth: 2.5,
+                            pointBackgroundColor: '#f59e0b',
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: '返却数',
+                            data: MOCK_DATA.weeklyStats.returned,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                            borderWidth: 2.5,
+                            pointBackgroundColor: '#10b981',
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            tension: 0.3,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 500 },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            padding: 8,
+                            cornerRadius: 8
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#f1f5f9' },
+                            ticks: { 
+                                font: { size: 10 }, 
+                                color: '#64748b',
+                                precision: 0
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { 
+                                font: { size: 10 }, 
+                                color: '#64748b',
+                                autoSkip: true,
+                                maxTicksLimit: 10,
+                                maxRotation: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function fetchDashboardData(isManual = false) {
+            const syncIcon = document.getElementById('sync-icon');
+            const chartStatus = document.getElementById('chart-status');
+            if (syncIcon) syncIcon.classList.add('fa-spin');
+
+            let data = null;
+            let isDemo = false;
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+                const targetUrl = `${currentGasUrl}?action=getDashboardData&t=${Date.now()}`;
+                const response = await fetch(targetUrl, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (response.ok) {
+                    data = await response.json();
+                    if (chartStatus) {
+                        chartStatus.innerText = "リアルタイム連動中";
+                        chartStatus.className = "text-[10px] text-emerald-600 font-mono bg-emerald-50 px-2 py-0.5 rounded";
+                    }
+                } else {
+                    throw new Error("APIレスポンス非200");
+                }
+            } catch (error) {
+                console.warn("GAS通信エラーまたはオフラインのためデモ表示中:", error);
+                data = MOCK_DATA;
+                isDemo = true;
+                
+                const now = new Date();
+                data.updatedAt = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+                
+                if (chartStatus) {
+                    chartStatus.innerText = "デモモード表示中";
+                    chartStatus.className = "text-[10px] text-amber-600 font-mono bg-amber-50 px-2 py-0.5 rounded";
+                }
+            } finally {
+                if (syncIcon) syncIcon.classList.remove('fa-spin');
+            }
+
+            const modeBadge = document.getElementById('mode-badge');
+            const modeText = document.getElementById('mode-text');
+            if (modeBadge && modeText) {
+                modeBadge.classList.remove('hidden');
+                if (isDemo) {
+                    modeBadge.className = "hidden md:flex items-center text-[11px] px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300";
+                    modeText.innerText = "デモモード動作中";
+                } else {
+                    modeBadge.className = "hidden md:flex items-center text-[11px] px-3 py-1 rounded-full bg-indigo-950/80 border border-indigo-500/30 text-indigo-300";
+                    modeText.innerText = "GAS リアルタイム同期中";
+                }
+            }
+
+            globalDashboardData = data;
+            updateDashboardUI(data);
+        }
+
+        function updateDashboardUI(data) {
+            document.getElementById('count-overdue').innerText = data.overdueCount || 0;
+            document.getElementById('count-active').innerText = data.activeCount || 0;
+            document.getElementById('badge-overdue').innerText = `${data.overdueCount || 0}件`;
+            document.getElementById('badge-active').innerText = `${data.activeCount || 0}件`;
+
+            const alertBadge = document.getElementById('alert-badge');
+            if (data.overdueCount > 0) {
+                alertBadge.classList.remove('hidden');
+            } else {
+                alertBadge.classList.add('hidden');
+            }
+
+            if (data.updatedAt) {
+                const timeParts = data.updatedAt.split(' ');
+                document.getElementById('last-updated').innerText = timeParts[1] || data.updatedAt;
+            }
+
+            // GASからの直近7日間データでChart.jsを更新
+            if (data.weeklyStats && trendChart) {
+                trendChart.data.labels = data.weeklyStats.labels || [];
+                trendChart.data.datasets[0].data = data.weeklyStats.borrowed || [];
+                trendChart.data.datasets[1].data = data.weeklyStats.returned || [];
+                trendChart.update();
+            }
+
+            filterLists();
+        }
+
+        function filterLists() {
+            const queryOverdue = (document.getElementById('search-overdue').value || '').toLowerCase();
+            const queryActive = (document.getElementById('search-active').value || '').toLowerCase();
+
+            const filteredOverdue = (globalDashboardData.overdueLoans || []).filter(item => 
+                (item.name || '').toLowerCase().includes(queryOverdue) || 
+                (item.borrowerName || '').toLowerCase().includes(queryOverdue) ||
+                (item.id || '').toLowerCase().includes(queryOverdue)
+            );
+
+            const filteredActive = (globalDashboardData.activeLoans || []).filter(item => 
+                (item.name || '').toLowerCase().includes(queryActive) || 
+                (item.borrowerName || '').toLowerCase().includes(queryActive) ||
+                (item.id || '').toLowerCase().includes(queryActive)
+            );
+
+            renderList('list-overdue', filteredOverdue, true);
+            renderList('list-active', filteredActive, false);
+        }
+
+        function renderList(containerId, items, isOverdue) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            if (items.length === 0) {
+                container.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center text-slate-400 py-12">
+                        <i class="fa-solid fa-circle-check text-3xl mb-2 ${isOverdue ? 'text-emerald-400' : 'text-slate-300'}"></i>
+                        <span class="text-xs font-medium">${isOverdue ? '期限超過の備品はありません' : '現在貸出中の備品はありません'}</span>
+                    </div>`;
+                return;
+            }
+
+            let html = '';
+            items.forEach(item => {
+                html += `
+                    <div class="${isOverdue ? 'bg-rose-50/70 border-rose-200 hover:border-rose-300' : 'bg-slate-50 border-slate-200/90 hover:border-slate-300'} border rounded-xl p-3 shadow-sm transition space-y-2 hover:shadow-md">
+                        <div class="flex justify-between items-start">
+                            <span class="font-bold text-slate-800 text-xs sm:text-sm leading-tight">${escapeHtml(item.name)}</span>
+                            <span class="font-mono text-[11px] bg-white px-2 py-0.5 rounded-md border border-slate-200 text-indigo-600 font-bold shrink-0 ml-2 shadow-xs">${escapeHtml(item.id)}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs pt-2 border-t border-slate-200/60 text-slate-600">
+                            <div class="flex items-center space-x-1.5">
+                                <i class="fa-solid fa-user-circle text-slate-400 text-xs"></i>
+                                <span class="font-bold text-slate-700">${escapeHtml(item.borrowerName)}</span>
+                                ${item.borrowerId ? `<span class="text-slate-400 text-[10px] font-mono">(${escapeHtml(item.borrowerId)})</span>` : ''}
+                            </div>
+                            <div class="font-mono text-slate-500 text-[10px] flex items-center">
+                                <i class="fa-regular fa-clock mr-1 text-slate-400"></i>${escapeHtml(item.borrowDate)}
+                            </div>
+                        </div>
+                    </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function toggleGasModal() {
+            const modal = document.getElementById('gas-modal');
+            if (modal) modal.classList.toggle('hidden');
+        }
+
+        function saveGasUrl() {
+            const urlInput = document.getElementById('gas-url-input').value.trim();
+            if (urlInput) {
+                currentGasUrl = urlInput;
+                localStorage.setItem('CUSTOM_GAS_API_URL', urlInput);
+                toggleGasModal();
+                fetchDashboardData(true);
+            }
+        }
+
+        function resetGasUrl() {
+            localStorage.removeItem('CUSTOM_GAS_API_URL');
+            currentGasUrl = DEFAULT_GAS_URL;
+            document.getElementById('gas-url-input').value = DEFAULT_GAS_URL;
+            toggleGasModal();
+            fetchDashboardData(true);
+        }
+    </script>
+</body>
+</html>
