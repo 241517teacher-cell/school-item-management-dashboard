@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>学校備品管理 - 管理者ダッシュボード</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -11,155 +11,178 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
-    body { font-family: 'Noto Sans JP', sans-serif; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&display=swap');
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* テーブル内部のカスタムスクロールバー */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen">
+<body class="bg-slate-100 text-slate-800 h-screen w-screen overflow-hidden flex flex-col font-sans">
 
-  <!-- ヘッダー -->
-  <header class="bg-indigo-700 text-white shadow-md sticky top-0 z-30">
-    <div class="max-w-7xl mx-auto px-4 py-3 sm:px-6 flex justify-between items-center">
-      <div class="flex items-center space-x-3">
-        <i class="fa-solid fa-chart-line text-2xl text-indigo-200"></i>
-        <div>
-          <h1 class="text-xl font-bold leading-tight">学校備品管理ダッシュボード</h1>
-          <p class="text-xs text-indigo-200">本番運用モード（GASリアルタイム同期）</p>
-        </div>
+  <!-- ヘッダー（コンパクト化） -->
+  <header class="bg-indigo-700 text-white shadow-md px-4 py-2 flex justify-between items-center shrink-0 h-12 z-30">
+    <div class="flex items-center space-x-2.5">
+      <i class="fa-solid fa-chart-line text-lg text-indigo-200"></i>
+      <div class="flex items-baseline space-x-2">
+        <h1 class="text-sm font-bold tracking-wide leading-none">学校備品管理ダッシュボード</h1>
+        <p class="text-[10px] text-indigo-200 hidden sm:inline">iPad・常設画面最適化モード</p>
       </div>
-      <div class="flex items-center space-x-2">
-        <button onclick="fetchDashboardData()" id="refreshBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-2 rounded-lg transition flex items-center shadow">
-          <i class="fa-solid fa-rotate mr-1" id="refreshIcon"></i>
-          最新データに更新
-        </button>
-        <button onclick="openConfigModal()" class="bg-indigo-800 hover:bg-indigo-900 text-white text-xs px-3 py-2 rounded-lg transition flex items-center shadow">
-          <i class="fa-solid fa-gear mr-1"></i>
-          GAS設定
-        </button>
-      </div>
+    </div>
+    <div class="flex items-center space-x-2">
+      <!-- 最終更新日時バッジ -->
+      <span id="lastUpdatedBadge" class="bg-indigo-800/80 text-indigo-100 text-[10px] px-2.5 py-1 rounded-md font-mono hidden md:inline-block border border-indigo-600/50">
+        未同期
+      </span>
+      <button onclick="fetchDashboardData()" id="refreshBtn" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs px-2.5 py-1 rounded-md transition flex items-center shadow-xs border border-indigo-400/30">
+        <i class="fa-solid fa-rotate mr-1 text-[10px]" id="refreshIcon"></i>
+        <span>更新</span>
+      </button>
+      <button onclick="openConfigModal()" class="bg-indigo-900 hover:bg-indigo-800 active:scale-95 text-white text-xs px-2.5 py-1 rounded-md transition flex items-center shadow-xs border border-indigo-700">
+        <i class="fa-solid fa-gear mr-1 text-[10px]"></i>
+        <span>GAS設定</span>
+      </button>
     </div>
   </header>
 
-  <!-- メインコンテンツ -->
-  <main class="max-w-7xl mx-auto px-4 py-6 sm:px-6 space-y-6">
+  <!-- メインコンテンツ（iPad 1画面fit 12カラムレイアウト） -->
+  <main class="flex-1 p-3 grid grid-cols-12 gap-3 overflow-hidden h-[calc(100vh-3rem)] min-h-0">
 
-    <!-- 接続ステータスバー -->
-    <div id="statusAlert" class="hidden rounded-lg p-4 text-sm flex items-center justify-between shadow-sm">
-      <div class="flex items-center space-x-2">
-        <i id="statusIcon" class="fa-solid"></i>
-        <span id="statusMessage"></span>
+    <!-- 左カラム (7/12): ステータス・概要カード・期限超過テーブル・推移グラフ -->
+    <div class="col-span-12 lg:col-span-7 flex flex-col space-y-2.5 overflow-hidden h-full min-h-0">
+
+      <!-- 接続ステータス通知バー (コンパクト表示) -->
+      <div id="statusAlert" class="hidden rounded-lg px-3 py-1.5 text-xs flex items-center justify-between shadow-2xs border shrink-0">
+        <div class="flex items-center space-x-2 truncate">
+          <i id="statusIcon" class="fa-solid text-sm"></i>
+          <span id="statusMessage" class="truncate font-medium"></span>
+        </div>
+        <span id="statusTime" class="text-[10px] font-mono shrink-0 ml-2"></span>
       </div>
-      <span id="lastUpdated" class="text-xs text-slate-500"></span>
+
+      <!-- 概要カード (3列コンパクト配置) -->
+      <div class="grid grid-cols-3 gap-2.5 shrink-0">
+        <!-- 返却期限超過 -->
+        <div class="bg-rose-50 border border-rose-200 p-2.5 rounded-xl shadow-2xs flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-rose-600 uppercase tracking-wider">返却期限超過 (未返却)</p>
+            <h2 class="text-2xl font-black text-rose-700 leading-none mt-1" id="statOverdue">0 <span class="text-xs font-normal text-rose-500">台</span></h2>
+          </div>
+          <div class="w-8 h-8 bg-rose-100 text-rose-600 rounded-lg flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-triangle-exclamation text-base"></i>
+          </div>
+        </div>
+
+        <!-- 現在貸出中 -->
+        <div class="bg-white border border-slate-200 p-2.5 rounded-xl shadow-2xs flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">現在貸出中の備品</p>
+            <h2 class="text-2xl font-black text-indigo-600 leading-none mt-1" id="statActive">0 <span class="text-xs font-normal text-slate-500">台</span></h2>
+          </div>
+          <div class="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-boxes-packing text-base"></i>
+          </div>
+        </div>
+
+        <!-- データ同期状態 -->
+        <div class="bg-white border border-slate-200 p-2.5 rounded-xl shadow-2xs flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">データ同期状態</p>
+            <h2 class="text-xs font-bold text-slate-700 leading-none mt-1.5" id="statSyncStatus">未接続</h2>
+          </div>
+          <div class="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-server text-base"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- 返却期限超過一覧テーブル (高さ固定・内部縦スクロール) -->
+      <div id="overdueCard" class="bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col shrink-0 h-44 overflow-hidden transition-colors duration-300">
+        <div id="overdueHeader" class="px-3 py-1.5 border-b flex justify-between items-center shrink-0">
+          <div class="flex items-center space-x-1.5">
+            <i id="overdueIcon" class="fa-solid text-xs"></i>
+            <h3 id="overdueTitle" class="font-bold text-xs">返却期限超過一覧（当日中の返却未完了）</h3>
+          </div>
+          <span id="overdueTableCount" class="text-[10px] font-bold px-2 py-0.5 rounded-full">0件</span>
+        </div>
+
+        <div class="overflow-y-auto flex-1">
+          <table class="w-full text-left text-xs text-slate-600">
+            <thead id="overdueThead" class="uppercase text-[10px] font-bold sticky top-0 z-10">
+              <tr>
+                <th class="px-3 py-1.5 whitespace-nowrap">備品ID</th>
+                <th class="px-3 py-1.5 whitespace-nowrap">備品名</th>
+                <th class="px-3 py-1.5 whitespace-nowrap">借用者名</th>
+                <th class="px-3 py-1.5 whitespace-nowrap">借用者ID</th>
+                <th class="px-3 py-1.5 whitespace-nowrap">貸出日時</th>
+                <th class="px-3 py-1.5 whitespace-nowrap">状態</th>
+              </tr>
+            </thead>
+            <tbody id="overdueTableBody" class="divide-y">
+              <tr>
+                <td colspan="6" class="px-3 py-4 text-center text-slate-400">データを読み込み中...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 端末動向推移グラフ (残りの高さを自動可変で確保) -->
+      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div class="flex justify-between items-center mb-1.5 shrink-0">
+          <div>
+            <h3 class="font-bold text-slate-800 text-xs">端末稼働台数推移（貸出・返却）</h3>
+          </div>
+          <span class="text-[9px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md">直近30日間</span>
+        </div>
+        <div class="relative w-full flex-1 min-h-0">
+          <canvas id="activityChart" class="absolute inset-0 w-full h-full"></canvas>
+        </div>
+      </div>
+
     </div>
 
-    <!-- 概要カード (3列レイアウト) -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <!-- 返却期限超過アイテム数 -->
-      <div class="bg-rose-50 border border-rose-200 p-5 rounded-xl shadow-sm flex items-center justify-between">
+    <!-- 右カラム (5/12): 現在貸出中の全備品一覧 (縦一杯・内部スクロール) -->
+    <div class="col-span-12 lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col h-full overflow-hidden min-h-0">
+      <div class="px-3 py-2 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
         <div>
-          <p class="text-xs font-bold text-rose-600 uppercase tracking-wider">返却期限超過 (未返却)</p>
-          <h2 class="text-3xl font-extrabold text-rose-700 mt-1" id="statOverdue">0 <span class="text-sm font-normal text-rose-500">台</span></h2>
+          <h3 class="font-bold text-slate-800 text-xs">現在貸出中の全備品一覧</h3>
+          <p class="text-[9px] text-slate-400">本日貸出分を含む全アイテム</p>
         </div>
-        <div class="p-3 bg-rose-100 text-rose-600 rounded-full">
-          <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
-        </div>
+        <span id="loanTableCount" class="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">0件</span>
       </div>
 
-      <!-- 貸出中アイテム数 -->
-      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-        <div>
-          <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">現在貸出中の備品</p>
-          <h2 class="text-3xl font-extrabold text-indigo-600 mt-1" id="statActive">0 <span class="text-sm font-normal text-slate-500">台</span></h2>
-        </div>
-        <div class="p-3 bg-indigo-50 text-indigo-600 rounded-full">
-          <i class="fa-solid fa-boxes-packing text-2xl"></i>
-        </div>
-      </div>
-
-      <!-- システム稼働状況 -->
-      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-        <div>
-          <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">データ同期状態</p>
-          <h2 class="text-lg font-bold text-slate-700 mt-1" id="statSyncStatus">未接続</h2>
-        </div>
-        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-full">
-          <i class="fa-solid fa-server text-2xl"></i>
-        </div>
-      </div>
-    </div>
-
-    <!-- 返却期限超過一覧テーブル -->
-    <div class="bg-white rounded-xl border border-rose-200 shadow-sm overflow-hidden">
-      <div class="p-5 border-b border-rose-100 flex justify-between items-center bg-rose-50/50">
-        <div>
-          <h3 class="font-bold text-rose-800 text-lg flex items-center">
-            <i class="fa-solid fa-circle-exclamation mr-2 text-rose-600"></i>返却期限超過一覧（当日中の返却未完了）
-          </h3>
-          <p class="text-xs text-rose-600">昨日以前に貸出され、まだ返却されていない備品です。</p>
-        </div>
-        <span id="overdueTableCount" class="text-xs font-bold bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full">0件</span>
-      </div>
-
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm text-slate-600">
-          <thead class="bg-rose-100/50 text-rose-800 uppercase text-xs font-semibold">
+      <div class="overflow-y-auto flex-1 min-h-0">
+        <table class="w-full text-left text-xs text-slate-600">
+          <thead class="bg-slate-100 text-slate-700 uppercase text-[10px] font-bold sticky top-0 border-b border-slate-200 z-10">
             <tr>
-              <th class="px-4 py-3">備品ID</th>
-              <th class="px-4 py-3">備品名</th>
-              <th class="px-4 py-3">借用者名</th>
-              <th class="px-4 py-3">借用者ID</th>
-              <th class="px-4 py-3">貸出日時</th>
-              <th class="px-4 py-3">ステータス</th>
-            </tr>
-          </thead>
-          <tbody id="overdueTableBody" class="divide-y divide-rose-100">
-            <tr>
-              <td colspan="6" class="px-4 py-6 text-center text-slate-400">データを読み込み中...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- 直近1ヵ月（30日間）の端末動向推移グラフ -->
-    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-      <div class="flex justify-between items-center mb-4">
-        <div>
-          <h3 class="font-bold text-slate-800 text-lg">端末稼働台数推移（貸出・返却）</h3>
-          <p class="text-xs text-slate-500">直近30日間に動いた端末の台数集計</p>
-        </div>
-        <span class="text-xs font-bold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full">過去30日間</span>
-      </div>
-      <div class="relative w-full h-72">
-        <canvas id="activityChart"></canvas>
-      </div>
-    </div>
-
-    <!-- 現在貸出中の全備品一覧テーブル -->
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-      <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-        <div>
-          <h3 class="font-bold text-slate-800 text-lg">現在貸出中の全備品一覧</h3>
-          <p class="text-xs text-slate-500">本日貸出分を含む全アイテム</p>
-        </div>
-        <span id="loanTableCount" class="text-xs font-bold bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full">0件</span>
-      </div>
-
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm text-slate-600">
-          <thead class="bg-slate-100 text-slate-700 uppercase text-xs font-semibold">
-            <tr>
-              <th class="px-4 py-3">備品ID</th>
-              <th class="px-4 py-3">備品名</th>
-              <th class="px-4 py-3">借用者名</th>
-              <th class="px-4 py-3">借用者ID</th>
-              <th class="px-4 py-3">貸出日時</th>
-              <th class="px-4 py-3">ステータス</th>
+              <th class="px-2.5 py-1.5 whitespace-nowrap">ID</th>
+              <th class="px-2.5 py-1.5 whitespace-nowrap">備品名</th>
+              <th class="px-2.5 py-1.5 whitespace-nowrap">借用者</th>
+              <th class="px-2.5 py-1.5 whitespace-nowrap">貸出日時</th>
+              <th class="px-2.5 py-1.5 whitespace-nowrap">状態</th>
             </tr>
           </thead>
           <tbody id="loanTableBody" class="divide-y divide-slate-100">
             <tr>
-              <td colspan="6" class="px-4 py-6 text-center text-slate-400">データを読み込み中...</td>
+              <td colspan="5" class="px-3 py-6 text-center text-slate-400">データを読み込み中...</td>
             </tr>
           </tbody>
         </table>
@@ -169,22 +192,22 @@
   </main>
 
   <!-- GAS API URL 設定モーダル -->
-  <div id="configModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
-    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 m-4 space-y-4">
-      <div class="flex justify-between items-center border-b pb-3">
-        <h3 class="font-bold text-lg text-slate-800">GAS Web API URL 設定</h3>
-        <button onclick="closeConfigModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+  <div id="configModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-3">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-bold text-sm text-slate-800">GAS Web API URL 設定</h3>
+        <button onclick="closeConfigModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-base"></i></button>
       </div>
-      <p class="text-xs text-slate-500">
+      <p class="text-[11px] text-slate-500 leading-relaxed">
         デプロイしたGoogle Apps Scriptの「ウェブアプリURL」を入力してください。
       </p>
       <div>
-        <label class="block text-xs font-bold text-slate-700 mb-1">WebアプリURL (`https://script.google.com/macros/s/.../exec`)</label>
-        <input type="url" id="gasUrlInput" placeholder="https://script.google.com/macros/s/..." class="w-full p-2.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+        <label class="block text-[10px] font-bold text-slate-700 mb-1">WebアプリURL (`https://script.google.com/macros/s/.../exec`)</label>
+        <input type="url" id="gasUrlInput" placeholder="https://script.google.com/macros/s/..." class="w-full p-2 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none font-mono">
       </div>
-      <div class="flex justify-end space-x-2 pt-2">
-        <button onclick="closeConfigModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs rounded-lg font-bold">キャンセル</button>
-        <button onclick="saveGasUrl()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg font-bold shadow">保存して再接続</button>
+      <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+        <button onclick="closeConfigModal()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs rounded-md font-bold">キャンセル</button>
+        <button onclick="saveGasUrl()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-md font-bold shadow-xs">保存して再接続</button>
       </div>
     </div>
   </div>
@@ -243,17 +266,19 @@
       }
 
       try {
-        const response = await fetch(`${gasApiUrl}?action=getDashboardData`);
+        const response = await fetch(`${gasApiUrl}?action=getDashboardData&t=${Date.now()}`);
         if (!response.ok) throw new Error(`HTTPエラー: ${response.status}`);
 
         const data = await response.json();
         renderDashboard(data);
-        showStatus(`正常に同期完了 (${data.updatedAt || new Date().toLocaleTimeString()})`, "success");
+        const timeStr = data.updatedAt || new Date().toLocaleTimeString();
+        showStatus(`正常に同期完了 (${timeStr})`, "success");
+        document.getElementById("lastUpdatedBadge").textContent = `最終更新: ${timeStr}`;
       } catch (err) {
         console.error("データ取得失敗:", err);
         showStatus(`データ取得エラー: ${err.message}`, "error");
         document.getElementById("statSyncStatus").textContent = "通信エラー";
-        document.getElementById("statSyncStatus").className = "text-lg font-bold text-rose-600 mt-1";
+        document.getElementById("statSyncStatus").className = "text-xs font-bold text-rose-600 leading-none mt-1.5";
       } finally {
         if (!isBackground) {
           refreshIcon.classList.remove("fa-spin");
@@ -263,33 +288,58 @@
     }
 
     function renderDashboard(data) {
-      document.getElementById("statOverdue").innerHTML = `${data.overdueCount || 0} <span class="text-sm font-normal text-rose-500">台</span>`;
-      document.getElementById("statActive").innerHTML = `${data.activeCount || 0} <span class="text-sm font-normal text-slate-500">台</span>`;
+      document.getElementById("statOverdue").innerHTML = `${data.overdueCount || 0} <span class="text-xs font-normal text-rose-500">台</span>`;
+      document.getElementById("statActive").innerHTML = `${data.activeCount || 0} <span class="text-xs font-normal text-slate-500">台</span>`;
       document.getElementById("statSyncStatus").textContent = "正常稼働中";
-      document.getElementById("statSyncStatus").className = "text-lg font-bold text-emerald-600 mt-1";
+      document.getElementById("statSyncStatus").className = "text-xs font-bold text-emerald-600 leading-none mt-1.5";
 
+      // 1. 返却期限超過テーブルの描画およびカラー切り替え
+      const overdueCard = document.getElementById("overdueCard");
+      const overdueHeader = document.getElementById("overdueHeader");
+      const overdueIcon = document.getElementById("overdueIcon");
+      const overdueTitle = document.getElementById("overdueTitle");
+      const overdueThead = document.getElementById("overdueThead");
       const overdueTbody = document.getElementById("overdueTableBody");
       const overdueLoans = data.overdueLoans || [];
+      
       document.getElementById("overdueTableCount").textContent = `${overdueLoans.length}件`;
 
       if (overdueLoans.length === 0) {
+        // 超過アイテム無し：安心できるエメラルドグリーン系カラー
+        overdueCard.className = "bg-white rounded-xl border border-emerald-200 shadow-2xs flex flex-col shrink-0 h-44 overflow-hidden transition-colors duration-300";
+        overdueHeader.className = "px-3 py-1.5 border-b border-emerald-100 flex justify-between items-center bg-emerald-50/70 shrink-0";
+        overdueIcon.className = "fa-solid fa-circle-check text-emerald-600 text-xs";
+        overdueTitle.className = "font-bold text-emerald-800 text-xs";
+        document.getElementById("overdueTableCount").className = "text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full";
+        overdueThead.className = "bg-emerald-50 text-emerald-800 uppercase text-[10px] font-bold sticky top-0 border-b border-emerald-100 z-10";
+        overdueTbody.className = "divide-y divide-emerald-50";
+
         overdueTbody.innerHTML = `
           <tr>
-            <td colspan="6" class="px-4 py-6 text-center text-emerald-600 font-medium">
-              <i class="fa-solid fa-circle-check mr-1"></i>現在、返却期限超過の備品はありません。
+            <td colspan="6" class="px-3 py-6 text-center text-emerald-600 font-medium whitespace-nowrap">
+              <i class="fa-solid fa-circle-check mr-1.5"></i>現在、返却期限超過の備品はありません。すべて正常です。
             </td>
           </tr>
         `;
       } else {
+        // 超過アイテムあり：警告のアラートレッド（ローズ）系カラー
+        overdueCard.className = "bg-white rounded-xl border border-rose-300 shadow-2xs flex flex-col shrink-0 h-44 overflow-hidden transition-colors duration-300";
+        overdueHeader.className = "px-3 py-1.5 border-b border-rose-100 flex justify-between items-center bg-rose-50/80 shrink-0";
+        overdueIcon.className = "fa-solid fa-triangle-exclamation text-rose-600 text-xs animate-pulse";
+        overdueTitle.className = "font-bold text-rose-800 text-xs";
+        document.getElementById("overdueTableCount").className = "text-[10px] font-bold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full";
+        overdueThead.className = "bg-rose-50 text-rose-800 uppercase text-[10px] font-bold sticky top-0 border-b border-rose-100 z-10";
+        overdueTbody.className = "divide-y divide-rose-100";
+
         overdueTbody.innerHTML = overdueLoans.map(loan => `
           <tr class="hover:bg-rose-50/50 transition">
-            <td class="px-4 py-3 font-mono font-bold text-rose-600">${loan.id}</td>
-            <td class="px-4 py-3 font-medium text-slate-800">${loan.name}</td>
-            <td class="px-4 py-3 font-bold text-rose-900">${loan.borrowerName || "-"}</td>
-            <td class="px-4 py-3 font-mono text-xs text-slate-500">${loan.borrowerId || "-"}</td>
-            <td class="px-4 py-3 text-xs font-semibold text-rose-600">${loan.borrowDate || "-"}</td>
-            <td class="px-4 py-3">
-              <span class="bg-rose-100 text-rose-700 text-xs font-bold px-2.5 py-1 rounded-full border border-rose-300 animate-pulse">
+            <td class="px-3 py-1.5 font-mono font-bold text-rose-600 text-[11px] whitespace-nowrap">${escapeHtml(loan.id)}</td>
+            <td class="px-3 py-1.5 font-medium text-slate-800 whitespace-nowrap truncate max-w-[120px]">${escapeHtml(loan.name)}</td>
+            <td class="px-3 py-1.5 font-bold text-rose-900 whitespace-nowrap">${escapeHtml(loan.borrowerName || "-")}</td>
+            <td class="px-3 py-1.5 font-mono text-[10px] text-slate-500 whitespace-nowrap">${escapeHtml(loan.borrowerId || "-")}</td>
+            <td class="px-3 py-1.5 text-[10px] font-semibold text-rose-600 whitespace-nowrap">${escapeHtml(loan.borrowDate || "-")}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap">
+              <span class="bg-rose-100 text-rose-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-rose-300 inline-block">
                 期限超過
               </span>
             </td>
@@ -297,10 +347,12 @@
         `).join("");
       }
 
+      // 2. グラフデータ更新
       if (data.weeklyStats) {
         updateChart(data.weeklyStats.labels, data.weeklyStats.borrowed, data.weeklyStats.returned);
       }
 
+      // 3. 現在貸出中の全備品テーブル描画
       const tbody = document.getElementById("loanTableBody");
       const activeLoans = data.activeLoans || [];
       document.getElementById("loanTableCount").textContent = `${activeLoans.length}件`;
@@ -308,7 +360,7 @@
       if (activeLoans.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="6" class="px-4 py-6 text-center text-slate-400">現在貸出中の備品はありません。</td>
+            <td colspan="5" class="px-3 py-6 text-center text-slate-400 whitespace-nowrap">現在貸出中の備品はありません。</td>
           </tr>
         `;
         return;
@@ -316,14 +368,13 @@
 
       tbody.innerHTML = activeLoans.map(loan => `
         <tr class="hover:bg-slate-50 transition">
-          <td class="px-4 py-3 font-mono font-bold text-indigo-600">${loan.id}</td>
-          <td class="px-4 py-3 font-medium text-slate-800">${loan.name}</td>
-          <td class="px-4 py-3">${loan.borrowerName || "-"}</td>
-          <td class="px-4 py-3 font-mono text-xs text-slate-500">${loan.borrowerId || "-"}</td>
-          <td class="px-4 py-3 text-xs text-slate-500">${loan.borrowDate || "-"}</td>
-          <td class="px-4 py-3">
-            <span class="${loan.status === '期限超過' ? 'bg-rose-100 text-rose-700 border-rose-300' : 'bg-indigo-50 text-indigo-700 border-indigo-200'} text-xs font-bold px-2.5 py-1 rounded-full border">
-              ${loan.status}
+          <td class="px-2.5 py-1.5 font-mono font-bold text-indigo-600 text-[11px] whitespace-nowrap">${escapeHtml(loan.id)}</td>
+          <td class="px-2.5 py-1.5 font-medium text-slate-800 whitespace-nowrap truncate max-w-[120px]">${escapeHtml(loan.name)}</td>
+          <td class="px-2.5 py-1.5 text-[11px] whitespace-nowrap">${escapeHtml(loan.borrowerName || "-")}</td>
+          <td class="px-2.5 py-1.5 text-[10px] text-slate-500 whitespace-nowrap">${escapeHtml(loan.borrowDate || "-")}</td>
+          <td class="px-2.5 py-1.5 whitespace-nowrap">
+            <span class="${loan.status === '期限超過' ? 'bg-rose-100 text-rose-700 border-rose-300' : 'bg-indigo-50 text-indigo-700 border-indigo-200'} text-[9px] font-bold px-1.5 py-0.5 rounded border inline-block">
+              ${escapeHtml(loan.status || '貸出中')}
             </span>
           </td>
         </tr>
@@ -341,8 +392,9 @@
               label: "貸出端末台数",
               data: [],
               borderColor: "#4f46e5",
-              backgroundColor: "rgba(79, 70, 229, 0.1)",
+              backgroundColor: "rgba(79, 70, 229, 0.08)",
               borderWidth: 2,
+              pointRadius: 2,
               fill: true,
               tension: 0.3
             },
@@ -350,8 +402,9 @@
               label: "返却端末台数",
               data: [],
               borderColor: "#10b981",
-              backgroundColor: "rgba(16, 185, 129, 0.1)",
+              backgroundColor: "rgba(16, 185, 129, 0.08)",
               borderWidth: 2,
+              pointRadius: 2,
               fill: true,
               tension: 0.3
             }
@@ -361,8 +414,12 @@
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: { position: "top" },
+            legend: { 
+              position: "top",
+              labels: { boxWidth: 10, font: { size: 10 } }
+            },
             tooltip: {
+              padding: 6,
               callbacks: {
                 label: function(context) {
                   return `${context.dataset.label}: ${context.parsed.y} 台`;
@@ -373,11 +430,11 @@
           scales: {
             x: {
               grid: { display: false },
-              ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }
+              ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8, font: { size: 9 } }
             },
             y: {
               beginAtZero: true,
-              ticks: { precision: 0 }
+              ticks: { precision: 0, font: { size: 9 } }
             }
           }
         }
@@ -396,21 +453,33 @@
       const alertEl = document.getElementById("statusAlert");
       const iconEl = document.getElementById("statusIcon");
       const msgEl = document.getElementById("statusMessage");
+      const timeEl = document.getElementById("statusTime");
 
-      alertEl.classList.remove("hidden", "bg-emerald-50", "text-emerald-800", "bg-rose-50", "text-rose-800", "bg-amber-50", "text-amber-800");
+      alertEl.classList.remove("hidden", "bg-emerald-50", "text-emerald-800", "border-emerald-200", "bg-rose-50", "text-rose-800", "border-rose-200", "bg-amber-50", "text-amber-800", "border-amber-200");
 
       if (type === "success") {
-        alertEl.classList.add("bg-emerald-50", "text-emerald-800");
+        alertEl.classList.add("bg-emerald-50", "text-emerald-800", "border-emerald-200");
         iconEl.className = "fa-solid fa-circle-check text-emerald-600";
       } else if (type === "error") {
-        alertEl.classList.add("bg-rose-50", "text-rose-800");
+        alertEl.classList.add("bg-rose-50", "text-rose-800", "border-rose-200");
         iconEl.className = "fa-solid fa-triangle-exclamation text-rose-600";
       } else {
-        alertEl.classList.add("bg-amber-50", "text-amber-800");
+        alertEl.classList.add("bg-amber-50", "text-amber-800", "border-amber-200");
         iconEl.className = "fa-solid fa-circle-info text-amber-600";
       }
 
       msgEl.textContent = msg;
+      timeEl.textContent = new Date().toLocaleTimeString();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
   </script>
 </body>
