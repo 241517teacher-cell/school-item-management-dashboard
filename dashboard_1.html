@@ -176,7 +176,7 @@
         <button onclick="closeConfigModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
       <p class="text-xs text-slate-500">
-        デプロイしたGoogle Apps Scriptの「ウェブアプリURL」を入力してください。URLはブラウザの保存領域（localStorage）に保持されます。
+        デプロイしたGoogle Apps Scriptの「ウェブアプリURL」を入力してください。
       </p>
       <div>
         <label class="block text-xs font-bold text-slate-700 mb-1">WebアプリURL (`https://script.google.com/macros/s/.../exec`)</label>
@@ -189,9 +189,12 @@
     </div>
   </div>
 
-  <!-- スクリプト制御部（リアルタイム通信のみ） -->
+  <!-- スクリプト制御部 -->
   <script>
-    let gasApiUrl = localStorage.getItem("GAS_DASHBOARD_URL") || "";
+    // デフォルトのGAS WebアプリURLを設定
+    const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyz4fYqYcjdmgeetwb_TGFwHaQIQ-nK0L4XIphCkVj8uNbo3_J7wuhq6RQYdDKZbheY/exec";
+
+    let gasApiUrl = localStorage.getItem("GAS_DASHBOARD_URL") || DEFAULT_GAS_URL;
     let chartInstance = null;
 
     window.addEventListener("DOMContentLoaded", () => {
@@ -203,7 +206,7 @@
         fetchDashboardData();
       }
 
-      // 30秒ごとに自動ポーリング更新
+      // 30秒ごとに自動更新
       setInterval(() => {
         if (gasApiUrl) fetchDashboardData(true);
       }, 30000);
@@ -260,13 +263,11 @@
     }
 
     function renderDashboard(data) {
-      // 数値反映
       document.getElementById("statOverdue").innerHTML = `${data.overdueCount || 0} <span class="text-sm font-normal text-rose-500">台</span>`;
       document.getElementById("statActive").innerHTML = `${data.activeCount || 0} <span class="text-sm font-normal text-slate-500">台</span>`;
       document.getElementById("statSyncStatus").textContent = "正常稼働中";
       document.getElementById("statSyncStatus").className = "text-lg font-bold text-emerald-600 mt-1";
 
-      // 返却期限超過テーブル描画
       const overdueTbody = document.getElementById("overdueTableBody");
       const overdueLoans = data.overdueLoans || [];
       document.getElementById("overdueTableCount").textContent = `${overdueLoans.length}件`;
@@ -296,12 +297,10 @@
         `).join("");
       }
 
-      // 端末台数グラフ描画
       if (data.weeklyStats) {
         updateChart(data.weeklyStats.labels, data.weeklyStats.borrowed, data.weeklyStats.returned);
       }
 
-      // 全件貸出中テーブル描画
       const tbody = document.getElementById("loanTableBody");
       const activeLoans = data.activeLoans || [];
       document.getElementById("loanTableCount").textContent = `${activeLoans.length}件`;
