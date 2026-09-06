@@ -54,11 +54,11 @@
 
     <!-- 概要カード (3列レイアウト) -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <!-- 返却期限超過アイテム数 (赤色強調) -->
+      <!-- 返却期限超過アイテム数 -->
       <div class="bg-rose-50 border border-rose-200 p-5 rounded-xl shadow-sm flex items-center justify-between">
         <div>
           <p class="text-xs font-bold text-rose-600 uppercase tracking-wider">返却期限超過 (未返却)</p>
-          <h2 class="text-3xl font-extrabold text-rose-700 mt-1" id="statOverdue">0 <span class="text-sm font-normal text-rose-500">点</span></h2>
+          <h2 class="text-3xl font-extrabold text-rose-700 mt-1" id="statOverdue">0 <span class="text-sm font-normal text-rose-500">台</span></h2>
         </div>
         <div class="p-3 bg-rose-100 text-rose-600 rounded-full">
           <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
@@ -69,7 +69,7 @@
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
           <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">現在貸出中の備品</p>
-          <h2 class="text-3xl font-extrabold text-indigo-600 mt-1" id="statActive">0 <span class="text-sm font-normal text-slate-500">点</span></h2>
+          <h2 class="text-3xl font-extrabold text-indigo-600 mt-1" id="statActive">0 <span class="text-sm font-normal text-slate-500">台</span></h2>
         </div>
         <div class="p-3 bg-indigo-50 text-indigo-600 rounded-full">
           <i class="fa-solid fa-boxes-packing text-2xl"></i>
@@ -88,7 +88,7 @@
       </div>
     </div>
 
-    <!-- 返却期限超過一覧テーブル (赤枠背景付き) -->
+    <!-- 返却期限超過一覧テーブル -->
     <div class="bg-white rounded-xl border border-rose-200 shadow-sm overflow-hidden">
       <div class="p-5 border-b border-rose-100 flex justify-between items-center bg-rose-50/50">
         <div>
@@ -121,12 +121,12 @@
       </div>
     </div>
 
-    <!-- 直近1ヵ月（30日間）のアクティビティ推移グラフ -->
+    <!-- 直近1ヵ月（30日間）の端末動向推移グラフ -->
     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
       <div class="flex justify-between items-center mb-4">
         <div>
-          <h3 class="font-bold text-slate-800 text-lg">貸出・返却アクティビティ推移</h3>
-          <p class="text-xs text-slate-500">直近30日間の利用動向</p>
+          <h3 class="font-bold text-slate-800 text-lg">端末稼働台数推移（貸出・返却）</h3>
+          <p class="text-xs text-slate-500">直近30日間に動いた端末の台数集計</p>
         </div>
         <span class="text-xs font-bold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full">過去30日間</span>
       </div>
@@ -135,7 +135,7 @@
       </div>
     </div>
 
-    <!-- 現在貸出中の備品全件一覧テーブル -->
+    <!-- 現在貸出中の全備品一覧テーブル -->
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
         <div>
@@ -189,7 +189,7 @@
     </div>
   </div>
 
-  <!-- スクリプト制御部 -->
+  <!-- スクリプト制御部（リアルタイム通信のみ） -->
   <script>
     let gasApiUrl = localStorage.getItem("GAS_DASHBOARD_URL") || "";
     let chartInstance = null;
@@ -203,6 +203,7 @@
         fetchDashboardData();
       }
 
+      // 30秒ごとに自動ポーリング更新
       setInterval(() => {
         if (gasApiUrl) fetchDashboardData(true);
       }, 30000);
@@ -260,8 +261,8 @@
 
     function renderDashboard(data) {
       // 数値反映
-      document.getElementById("statOverdue").innerHTML = `${data.overdueCount || 0} <span class="text-sm font-normal text-rose-500">点</span>`;
-      document.getElementById("statActive").innerHTML = `${data.activeCount || 0} <span class="text-sm font-normal text-slate-500">点</span>`;
+      document.getElementById("statOverdue").innerHTML = `${data.overdueCount || 0} <span class="text-sm font-normal text-rose-500">台</span>`;
+      document.getElementById("statActive").innerHTML = `${data.activeCount || 0} <span class="text-sm font-normal text-slate-500">台</span>`;
       document.getElementById("statSyncStatus").textContent = "正常稼働中";
       document.getElementById("statSyncStatus").className = "text-lg font-bold text-emerald-600 mt-1";
 
@@ -295,7 +296,7 @@
         `).join("");
       }
 
-      // グラフ描画
+      // 端末台数グラフ描画
       if (data.weeklyStats) {
         updateChart(data.weeklyStats.labels, data.weeklyStats.borrowed, data.weeklyStats.returned);
       }
@@ -338,7 +339,7 @@
           labels: [],
           datasets: [
             {
-              label: "貸出件数",
+              label: "貸出端末台数",
               data: [],
               borderColor: "#4f46e5",
               backgroundColor: "rgba(79, 70, 229, 0.1)",
@@ -347,7 +348,7 @@
               tension: 0.3
             },
             {
-              label: "返却件数",
+              label: "返却端末台数",
               data: [],
               borderColor: "#10b981",
               backgroundColor: "rgba(16, 185, 129, 0.1)",
@@ -361,7 +362,14 @@
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: { position: "top" }
+            legend: { position: "top" },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return `${context.dataset.label}: ${context.parsed.y} 台`;
+                }
+              }
+            }
           },
           scales: {
             x: {
